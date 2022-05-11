@@ -129,26 +129,6 @@ read(io::IO, ::Type{NTuple{N,T}}) where {N,T} =
     ntuple(_->Base.read(io, T), N)
 ntoh(@nospecialize(x)) = Base.ntoh(x)
 ntoh(@nospecialize(t::Tuple)) = t
-#=
-function read_fibsem(f, T = FIBSEMHeader_v9)
-    seekstart(f)
-    header_tuple = ntoh.(read.(Ref(f), fieldtypes(T)))
-    first(reinterpret(T, [header_tuple]))
-end
-=#
-#=
-function read_fibsem(io::IO, ::Type{T} = FIBSEMHeader_v9) where {T <: AbstractFIBSEMHeader}
-    seekstart(io)
-    ft = fieldtypes(T)
-    args = ntuple(length(ft)) do i
-        ntoh(read(io, ft[i]))
-    end
-    #args = map(ft) do t
-    #    ntoh(read(io, t))
-    #end
-    T(args...)
-end
-=#
 @generated function read_fibsem(io::IO, ::Type{T} = FIBSEMHeader_v9) where {T <: AbstractFIBSEMHeader}
     ft = fieldtypes(T)
     con = :(T())
@@ -161,10 +141,22 @@ end
     end
 end
 function read_fibsem(filename::String, @nospecialize(T = FIBSEMHeader_v9))
-    io = open(filename, "r") do f
-        io = IOBuffer(read(f, 1024))
+    try
+        io = open(filename, "r") do f
+            try
+                io = IOBuffer(read(f, 1024))
+            catch err
+                @error "Could not read 1024 bytes from $filename"
+            end
+            try
+                read_fibsem(io, T)
+            catch err
+                @error "Failed to read FIBSEM header of type $T from byte buffer"
+            end
+        end
+    catch err
+        @error "Could not open $filename for rading"
     end
-    read_fibsem(io, T)
 end
 function Base.show(io::IO, ::MIME"text/plain", h::FIBSEMHeader_v9)
     for (name, type) in zip(fieldnames(typeof(h)), fieldtypes(typeof(h)))
@@ -173,7 +165,6 @@ function Base.show(io::IO, ::MIME"text/plain", h::FIBSEMHeader_v9)
             println(unsafe_string(pointer([getfield(h, name)...])))
         elseif type <: Tuple
             println(io, "sum = $(sum(getfield(h, name)))")
-            #println()
         else
             println(io, getfield(h, name))
         end
