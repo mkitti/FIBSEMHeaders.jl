@@ -2,6 +2,27 @@ module FIBSEMHeaders
 
 abstract type AbstractFIBSEMHeader end
 
+function (::Type{H})(nt::NamedTuple) where H <: AbstractFIBSEMHeader
+    data = _convert_hdf5_type_to_fields(H, nt)
+    return H(data...)
+end
+
+function _convert_hdf5_type_to_fields(::Type{H}, nt::NamedTuple) where H <: AbstractFIBSEMHeader
+    data = ntuple(fieldcount(H)) do i
+        name = fieldname(H, i)
+        t = fieldtype(H, i)
+        v = getfield(nt, name)
+        if typeof(v) == String
+            v = (resize!(Vector{UInt8}(v), sizeof(t))...,)
+        elseif typeof(v) <: Vector
+            v = (v...,)
+        end
+        return v
+    end
+    return data
+end
+
+
 struct FIBSEMHeader_v9 <: AbstractFIBSEMHeader
     FileMagicNum              :: UInt32                # 0
     FileVersion               :: UInt16                # 4
@@ -21,7 +42,7 @@ struct FIBSEMHeader_v9 <: AbstractFIBSEMHeader
     XResolution               :: UInt32                # 100
     YResolution               :: UInt32                # 104
     Oversampling              :: UInt16                # 108
-    space110                  :: UInt8                 # 110
+    space110                  :: NTuple{1,UInt8}       # 110
     ZeissScanSpeed            :: UInt8                 # 111
     ScanRate                  :: Float32               # 112
     FramelineRampdownRatio    :: Float32               # 116
@@ -172,5 +193,6 @@ function Base.show(io::IO, ::MIME"text/plain", h::FIBSEMHeader_v9)
 end
 
 include("precompile.jl")
+#include("hdf5_encoding.jl")
 
 end # module FIBSEMHeaders
