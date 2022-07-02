@@ -193,6 +193,6 @@ function Base.show(io::IO, ::MIME"text/plain", h::FIBSEMHeader_v9)
 end
 
 include("precompile.jl")
-#include("hdf5_encoding.jl")
+include("hdf5_encoding.jl")
 
 end # module FIBSEMHeaders
